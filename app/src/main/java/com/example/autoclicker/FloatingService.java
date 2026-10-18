@@ -5,40 +5,78 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
-
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.LinearLayout;
 
 public class FloatingService extends Service {
 
     private WindowManager windowManager;
-    private Button floatingButton;
+    private LinearLayout controlPanel;
+    private Button btnStart, btnTarget;
+    
+    private boolean isRunning = false;
+    private int currentClickCount = 0;
+    private Handler clickHandler = new Handler();
+
+    private Runnable clickRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isRunning) {
+                AutoClickService service = AutoClickService.getInstance();
+                if (service != null && btnTarget != null) {
+                    int[] location = new int[2];
+                    btnTarget.getLocationOnScreen(location);
+                    // Point sentuhan di tengah target
+                    service.doClick(location[0] + (btnTarget.getWidth() / 2), location[1] + (btnTarget.getHeight() / 2));
+                }
+
+                currentClickCount++;
+
+                // Cek batas aman klik
+                if (MainActivity.maxClicks > 0 && currentClickCount >= MainActivity.maxClicks) {
+                    stopAutoClick();
+                } else {
+                    // Loop aman pake interval minimal 50ms
+                    clickHandler.postDelayed(this, Math.max(MainActivity.clickInterval, 50));
+                }
+            }
+        }
+    };
 
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
+    public IBinder onBind(Intent intent) { return null; }
 
     @Override
     public void onCreate() {
         super.onCreate();
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        floatingButton = new Button(this);
-        floatingButton.setText("CLICK!");
-        floatingButton.setBackgroundColor(Color.RED);
-        floatingButton.setTextColor(Color.WHITE);
 
-        int layoutType;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        } else {
-            layoutType = WindowManager.LayoutParams.TYPE_PHONE;
-        }
+        // Panel Kontrol Melayang (Tombol Start/Stop & Target)
+        controlPanel = new LinearLayout(this);
+        controlPanel.setOrientation(LinearLayout.VERTICAL);
+
+        btnStart = new Button(this);
+        btnStart.setText("▶");
+        btnStart.setBackgroundColor(Color.parseColor("#4CAF50"));
+        btnStart.setTextColor(Color.WHITE);
+
+        btnTarget = new Button(this);
+        btnTarget.setText("🎯");
+        btnTarget.setBackgroundColor(Color.parseColor("#E91E63"));
+        btnTarget.setTextColor(Color.WHITE);
+
+        controlPanel.addView(btnStart);
+        controlPanel.addView(btnTarget);
+
+        int layoutType = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ?
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
 
         final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -49,10 +87,19 @@ public class FloatingService extends Service {
         );
 
         params.gravity = Gravity.TOP | Gravity.LEFT;
-        params.x = 200;
-        params.y = 400;
+        params.x = 100;
+        params.y = 300;
 
-        floatingButton.setOnTouchListener(new View.OnTouchListener() {
+        btnStart.setOnClickListener(v -> {
+            if (isRunning) {
+                stopAutoClick();
+            } else {
+                startAutoClick();
+            }
+        });
+
+        // Fitur geser panel
+        controlPanel.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
 
@@ -68,29 +115,35 @@ public class FloatingService extends Service {
                     case MotionEvent.ACTION_MOVE:
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        windowManager.updateViewLayout(floatingButton, params);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        int diffX = Math.abs((int) (event.getRawX() - initialTouchX));
-                        int diffY = Math.abs((int) (event.getRawY() - initialTouchY));
-                        if (diffX < 10 && diffY < 10) {
-                            AutoClickService service = AutoClickService.getInstance();
-                            if (service != null) {
-                                service.doClick(params.x + 50, params.y + 100);
-                            }
-                        }
+                        windowManager.updateViewLayout(controlPanel, params);
                         return true;
                 }
                 return false;
             }
         });
 
-        windowManager.addView(floatingButton, params);
+        windowManager.addView(controlPanel, params);
+    }
+
+    private void startAutoClick() {
+        isRunning = true;
+        currentClickCount = 0;
+        btnStart.setText("⏸");
+        btnStart.setBackgroundColor(Color.RED);
+        clickHandler.post(clickRunnable);
+    }
+
+    private void stopAutoClick() {
+        isRunning = false;
+        btnStart.setText("▶");
+        btnStart.setBackgroundColor(Color.parseColor("#4CAF50"));
+        clickHandler.removeCallbacks(clickRunnable);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (floatingButton != null) windowManager.removeView(floatingButton);
+        stopAutoClick();
+        if (controlPanel != null) windowManager.removeView(controlPanel);
     }
 }
