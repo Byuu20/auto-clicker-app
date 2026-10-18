@@ -1,38 +1,41 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+package com.example.autoclicker;
 
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.GestureDescription;
+import android.graphics.Path;
+import android.view.accessibility.AccessibilityEvent;
 
-    <application
-        android:label="Auto Clicker"
-        android:theme="@android:style/Theme.Material.Light">
+public class AutoClickService extends AccessibilityService {
 
-        <!-- Tampilan Layar Utama -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+    private static AutoClickService instance;
 
-        <!-- Service Klik Otomatis -->
-        <service
-            android:name=".AutoClickService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        instance = this;
+    }
 
-        <!-- Service Tombol Melayang -->
-        <service android:name=".FloatingService" />
+    public static AutoClickService getInstance() {
+        return instance;
+    }
 
-    </application>
-</manifest>
-    
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {}
+
+    @Override
+    public void onInterrupt() {
+        instance = null;
+    }
+
+    public void doClick(int x, int y) {
+        Path path = new Path();
+        path.moveTo(x, y);
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        GestureDescription gestureDescription = builder
+                .addStroke(new GestureDescription.StrokeDescription(path, 0, 50))
+                .build();
+
+        dispatchGesture(gestureDescription, null, null);
+    }
+}
