@@ -1,27 +1,38 @@
-package com.example.autoclicker;
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-import android.accessibilityservice.AccessibilityService;
-import android.accessibilityservice.GestureDescription;
-import android.graphics.Path;
-import android.view.accessibility.AccessibilityEvent;
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
-public class AutoClickService extends AccessibilityService {
+    <application
+        android:label="Auto Clicker"
+        android:theme="@android:style/Theme.Material.Light">
 
-    @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {}
+        <!-- Tampilan Layar Utama -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-    @Override
-    public void onInterrupt() {}
+        <!-- Service Klik Otomatis -->
+        <service
+            android:name=".AutoClickService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
-    public void doClick(int x, int y) {
-        Path path = new Path();
-        path.moveTo(x, y);
+        <!-- Service Tombol Melayang -->
+        <service android:name=".FloatingService" />
 
-        GestureDescription.Builder builder = new GestureDescription.Builder();
-        GestureDescription gestureDescription = builder
-                .addStroke(new GestureDescription.StrokeDescription(path, 0, 50))
-                .build();
-
-        dispatchGesture(gestureDescription, null, null);
-    }
-}
+    </application>
+</manifest>
+    
